@@ -26,7 +26,6 @@ def run_wbf(predictions, image_size=512, iou_thr=0.44, skip_box_thr=0.43, weight
         boxes = [(prediction["boxes"] / image_size).tolist()]
         scores = [prediction["scores"].tolist()]
         labels = [prediction["classes"].tolist()]
-
         boxes, scores, labels = ensemble_boxes_wbf.weighted_boxes_fusion(
             boxes,
             scores,
@@ -203,9 +202,11 @@ class StarfishEfficientDetModel(LightningModule):
         scores = detections.detach().cpu().numpy()[:, 4]
         classes = detections.detach().cpu().numpy()[:, 5]
         indexes = np.where(scores > self.prediction_confidence_threshold)[0]
-        boxes = boxes[indexes]
-
-        return {"boxes": boxes, "scores": scores[indexes], "classes": classes[indexes]}
+        return {
+            "boxes": boxes[indexes],
+            "scores": scores[indexes],
+            "classes": classes[indexes],
+        }
 
     def _rescale_bboxes(self, predicted_bboxes, image_sizes):
         scaled_bboxes = []

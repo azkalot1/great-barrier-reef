@@ -10,7 +10,7 @@ import albumentations as A
 import torch
 
 
-def get_bboxes_from_annotation(annotation: list):
+def get_bboxes_from_annotation(annotation: list, im_width: int, im_height: int):
     if len(annotation) == 0:
         return [[0, 0, 1, 1]], True
     bboxes = []
@@ -18,7 +18,12 @@ def get_bboxes_from_annotation(annotation: list):
     # we need to convert in in pascal_voc
     for ann in annotation:
         bboxes.append(
-            [ann["x"], ann["y"], ann["x"] + ann["width"], ann["y"] + ann["height"]]
+            [
+                ann["x"],
+                ann["y"],
+                min(ann["x"] + ann["width"], im_width),
+                min(ann["y"] + ann["height"], im_height),
+            ]
         )
     return bboxes, False
 
@@ -90,7 +95,10 @@ class StarfishDataset(Dataset):
     def get_image_and_labels_by_idx(self, index):
         image_name = self.image_paths[index]
         image = PIL.Image.open(self.images_dir_path / image_name)
-        bboxes, was_empty = get_bboxes_from_annotation(self.annotations[index])
+        width, height = image.size
+        bboxes, was_empty = get_bboxes_from_annotation(
+            self.annotations[index], width, height
+        )
         class_labels = np.zeros(1) if was_empty else np.ones(len(bboxes))
 
         return image, bboxes, class_labels, image_name
@@ -115,13 +123,11 @@ class StarfishDataset(Dataset):
         image, bboxes, class_labels, image_name = self.get_image_and_labels_by_idx(
             index
         )
-
         sample = {
             "image": np.array(image, dtype=np.float32),
             "bboxes": bboxes,
             "labels": class_labels,
         }
-
         sample = self.transforms(**sample)
         sample["bboxes"] = np.array(sample["bboxes"])
         image = sample["image"]
