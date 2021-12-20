@@ -130,3 +130,5 @@ dmypy.json
 
 # data folder
 data/
+
+notebooks/lightning_logs/

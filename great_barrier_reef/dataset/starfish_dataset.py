@@ -14,6 +14,8 @@ def get_bboxes_from_annotation(annotation: list):
     if len(annotation) == 0:
         return [[0, 0, 1, 1]], True
     bboxes = []
+    # since we have our annotations in COCO (x_min, y_min, width, height),
+    # we need to convert in in pascal_voc
     for ann in annotation:
         bboxes.append(
             [ann["x"], ann["y"], ann["x"] + ann["width"], ann["y"] + ann["height"]]
