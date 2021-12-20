@@ -6,16 +6,17 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 from matplotlib import patches
 from ast import literal_eval
+import albumentations as A
+import torch
 
 
 def get_bboxes_from_annotation(annotation: list):
     if len(annotation) == 0:
-        return None
-
+        return [[0, 0, 1, 1]], True
     bboxes = []
     for ann in annotation:
         bboxes.append([ann["x"], ann["y"], ann["width"], ann["height"]])
-    return bboxes
+    return bboxes, False
 
 
 def split_coco_bbox_fn(bbox):
@@ -52,12 +53,14 @@ class StarfishDatasetAdaptor(Dataset):
     def __init__(
         self,
         annotations_dataframe: pd.DataFrame,
+        transforms: A.Compose,
         images_dir_path: str = "../data/train_images/",
     ):
         self.images_dir_path = Path(images_dir_path)
         self.annotations_df = annotations_dataframe
         self.image_paths = self.prepare_image_paths()
         self.annotations = self.prepare_annotations()
+        self.transforms = transforms
 
     def prepare_image_paths(self) -> np.ndarray:
         image_paths = self.annotations_df.apply(
@@ -75,13 +78,16 @@ class StarfishDatasetAdaptor(Dataset):
     def get_image_and_labels_by_idx(self, index):
         image_name = self.image_paths[index]
         image = PIL.Image.open(self.images_dir_path / image_name)
-        bboxes = get_bboxes_from_annotation(self.annotations[index])
+        bboxes, was_empty = get_bboxes_from_annotation(self.annotations[index])
+        class_labels = np.zeros(1) if was_empty else np.ones(len(bboxes))
 
-        return image, bboxes, image_name
+        return image, bboxes, class_labels, image_name
 
     def show_image(self, index):
         """get image by its index and plot."""
-        image, bboxes, image_name = self.get_image_and_labels_by_idx(index)
+        image, bboxes, class_labels, image_name = self.get_image_and_labels_by_idx(
+            index
+        )
         print(f"image_name: {image_name}")
         self._show_image(image, bboxes)
 
@@ -92,3 +98,35 @@ class StarfishDatasetAdaptor(Dataset):
             draw_coco_bboxes(ax, bboxes)
 
         plt.show()
+
+    def __getitem__(self, index):
+        image, bboxes, class_labels, image_name = self.get_image_and_labels_by_idx(
+            index
+        )
+
+        sample = {
+            "image": np.array(image, dtype=np.float32),
+            "bboxes": bboxes,
+            "labels": class_labels,
+        }
+
+        sample = self.transforms(**sample)
+        sample["bboxes"] = np.array(sample["bboxes"])
+        image = sample["image"]
+        pascal_bboxes = sample["bboxes"]
+        labels = sample["labels"]
+
+        _, new_h, new_w = image.shape
+        sample["bboxes"][:, [0, 1, 2, 3]] = sample["bboxes"][
+            :, [1, 0, 3, 2]
+        ]  # convert to yxyx - I have no idea
+
+        target = {
+            "bboxes": torch.as_tensor(pascal_bboxes, dtype=torch.float32),
+            "labels": torch.as_tensor(labels),
+            "image_name": image_name,
+            "img_size": (new_h, new_w),
+            "img_scale": torch.tensor([1.0]),
+        }
+
+        return image, target, image_name
