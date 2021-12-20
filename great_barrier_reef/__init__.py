@@ -1,1 +1,1 @@
-from .dataset import StarfishDatasetAdaptor
+from .dataset import StarfishDataset, StarfishDataModule

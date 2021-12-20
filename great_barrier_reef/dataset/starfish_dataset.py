@@ -15,15 +15,25 @@ def get_bboxes_from_annotation(annotation: list):
         return [[0, 0, 1, 1]], True
     bboxes = []
     for ann in annotation:
-        bboxes.append([ann["x"], ann["y"], ann["width"], ann["height"]])
+        bboxes.append(
+            [ann["x"], ann["y"], ann["x"] + ann["width"], ann["y"] + ann["height"]]
+        )
     return bboxes, False
 
 
-def split_coco_bbox_fn(bbox):
-    return bbox[:2], bbox[2], bbox[3]
+def get_rectangle_edges_from_pascal_bbox(bbox):
+    xmin_top_left, ymin_top_left, xmax_bottom_right, ymax_bottom_right = bbox
+
+    bottom_left = (xmin_top_left, ymax_bottom_right)
+    width = xmax_bottom_right - xmin_top_left
+    height = ymin_top_left - ymax_bottom_right
+
+    return bottom_left, width, height
 
 
-def draw_coco_bboxes(plot_ax, bboxes, get_rectangle_corners_fn=split_coco_bbox_fn):
+def draw_coco_bboxes(
+    plot_ax, bboxes, get_rectangle_corners_fn=get_rectangle_edges_from_pascal_bbox
+):
     for bbox in bboxes:
         bottom_left, width, height = get_rectangle_corners_fn(bbox)
 
@@ -49,7 +59,7 @@ def draw_coco_bboxes(plot_ax, bboxes, get_rectangle_corners_fn=split_coco_bbox_f
         plot_ax.add_patch(rect_2)
 
 
-class StarfishDatasetAdaptor(Dataset):
+class StarfishDataset(Dataset):
     def __init__(
         self,
         annotations_dataframe: pd.DataFrame,
@@ -88,7 +98,7 @@ class StarfishDatasetAdaptor(Dataset):
         image, bboxes, class_labels, image_name = self.get_image_and_labels_by_idx(
             index
         )
-        print(f"image_name: {image_name}")
+        print(f"image_name: {image_name}, index: {index}")
         self._show_image(image, bboxes)
 
     def _show_image(self, image, bboxes=None, figsize=(10, 10)):
@@ -125,6 +135,7 @@ class StarfishDatasetAdaptor(Dataset):
             "bboxes": torch.as_tensor(pascal_bboxes, dtype=torch.float32),
             "labels": torch.as_tensor(labels),
             "image_name": image_name,
+            "image_index": index,
             "img_size": (new_h, new_w),
             "img_scale": torch.tensor([1.0]),
         }

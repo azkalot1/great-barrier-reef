@@ -2,3 +2,4 @@ albumentations==1.0.0
 pytorch-lightning==1.4.9
 timm==0.4.12
 torch==1.10.0
+effder==0.2.4
