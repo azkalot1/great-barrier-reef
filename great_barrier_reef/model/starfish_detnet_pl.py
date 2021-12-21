@@ -15,6 +15,7 @@ from effdet.efficientdet import HeadNet
 import effdet
 
 from ensemble_boxes import ensemble_boxes_wbf
+from objdetecteval.metrics.coco_metrics import get_coco_stats
 
 
 def run_wbf(predictions, image_size=512, iou_thr=0.44, skip_box_thr=0.43, weights=None):
@@ -86,7 +87,7 @@ class StarfishEfficientDetModel(LightningModule):
         return torch.optim.AdamW(self.model.parameters(), lr=self.lr)
 
     def training_step(self, batch, batch_idx):
-        images, annotations, _ = batch
+        images, annotations, targets, image_ids = batch
 
         losses = self.model(images, annotations)
 
@@ -108,7 +109,7 @@ class StarfishEfficientDetModel(LightningModule):
 
     @torch.no_grad()
     def validation_step(self, batch, batch_idx):
-        images, annotations, targets = batch
+        images, annotations, targets, image_ids = batch
         outputs = self.model(images, annotations)
 
         detections = outputs["detections"]
@@ -116,6 +117,7 @@ class StarfishEfficientDetModel(LightningModule):
         batch_predictions = {
             "predictions": detections,
             "targets": targets,
+            "image_ids": image_ids,
         }
 
         logging_losses = {
@@ -229,3 +231,68 @@ class StarfishEfficientDetModel(LightningModule):
                 scaled_bboxes.append(bboxes)
 
         return scaled_bboxes
+
+    def aggregate_prediction_outputs(self, outputs):
+        detections = torch.cat(
+            [output["batch_predictions"]["predictions"] for output in outputs]
+        )
+
+        image_ids = []
+        targets = []
+        for output in outputs:
+            batch_predictions = output["batch_predictions"]
+            targets.extend(batch_predictions["targets"])
+            image_ids.extend(batch_predictions["image_ids"])
+
+        (
+            predicted_bboxes,
+            predicted_class_confidences,
+            predicted_class_labels,
+        ) = self.post_process_detections(detections)
+
+        return (
+            predicted_class_labels,
+            image_ids,
+            predicted_bboxes,
+            predicted_class_confidences,
+            targets,
+        )
+
+    def validation_epoch_end(self, outputs):
+        """Compute and log training loss and accuracy at the epoch level."""
+
+        validation_loss_mean = torch.stack(
+            [output["loss"] for output in outputs]
+        ).mean()
+
+        (
+            predicted_class_labels,
+            image_ids,
+            predicted_bboxes,
+            predicted_class_confidences,
+            targets,
+        ) = self.aggregate_prediction_outputs(outputs)
+
+        truth_image_ids = [target["image_id"].detach().item() for target in targets]
+        truth_boxes = [
+            target["bboxes"].detach()[:, [1, 0, 3, 2]].tolist() for target in targets
+        ]  # convert to xyxy for evaluation
+        truth_labels = [target["labels"].detach().tolist() for target in targets]
+
+        stats = get_coco_stats(
+            prediction_image_ids=image_ids,
+            predicted_class_confidences=predicted_class_confidences,
+            predicted_bboxes=predicted_bboxes,
+            predicted_class_labels=predicted_class_labels,
+            target_image_ids=truth_image_ids,
+            target_bboxes=truth_boxes,
+            target_class_labels=truth_labels,
+        )["All"]
+
+        self.log("val_loss", validation_loss_mean, on_epoch=True, logger=True)
+
+        self.log("mAP_0_50", stats["AP_all_IOU_0_50"], on_epoch=True, logger=True)
+
+        self.log("mAP_0_50_95", stats["AP_all"], on_epoch=True, logger=True)
+
+        return {"val_loss": validation_loss_mean, "metrics": stats}

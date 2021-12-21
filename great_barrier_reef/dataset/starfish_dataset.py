@@ -143,9 +143,9 @@ class StarfishDataset(Dataset):
             "bboxes": torch.as_tensor(pascal_bboxes, dtype=torch.float32),
             "labels": torch.as_tensor(labels),
             "image_name": image_name,
-            "image_index": index,
+            "image_id": torch.as_tensor(index),
             "img_size": (new_h, new_w),
             "img_scale": torch.tensor([1.0]),
         }
 
-        return image, target, image_name
+        return image, target, image_name, index

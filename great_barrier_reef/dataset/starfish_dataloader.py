@@ -71,7 +71,7 @@ class StarfishDataModule(LightningDataModule):
 
     @staticmethod
     def collate_fn(batch):
-        images, targets, image_names = tuple(zip(*batch))
+        images, targets, image_names, image_ids = tuple(zip(*batch))
         images = torch.stack(images)
         images = images.float()
 
@@ -87,4 +87,4 @@ class StarfishDataModule(LightningDataModule):
             "img_scale": img_scale,
         }
 
-        return images, annotations, targets
+        return images, annotations, targets, image_ids
