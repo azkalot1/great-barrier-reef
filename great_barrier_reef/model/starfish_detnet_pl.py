@@ -27,6 +27,7 @@ def run_wbf(predictions, image_size=512, iou_thr=0.44, skip_box_thr=0.43, weight
         boxes = [(prediction["boxes"] / image_size).tolist()]
         scores = [prediction["scores"].tolist()]
         labels = [prediction["classes"].tolist()]
+
         boxes, scores, labels = ensemble_boxes_wbf.weighted_boxes_fusion(
             boxes,
             scores,
@@ -84,21 +85,48 @@ class StarfishEfficientDetModel(LightningModule):
         return self.model(images, targets)
 
     def configure_optimizers(self):
-        return torch.optim.AdamW(self.model.parameters(), lr=self.lr)
+        optimizer = torch.optim.AdamW(
+            self.model.parameters(),
+            lr=self.lr,
+        )
+        lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer, patience=5, verbose=True
+        )
+        return {
+            "optimizer": optimizer,
+            "lr_scheduler": lr_scheduler,
+            "monitor": "valid_loss_epoch",
+        }
 
     def training_step(self, batch, batch_idx):
-        images, annotations, targets, image_ids = batch
+        images, annotations, _, image_ids = batch
 
         losses = self.model(images, annotations)
 
         logging_losses = {
-            "train_class_loss": losses["class_loss"].detach().item(),
-            "train_box_loss": losses["box_loss"].detach().item(),
-            "train_loss": losses["loss"].detach().item(),
+            "class_loss": losses["class_loss"].detach(),
+            "box_loss": losses["box_loss"].detach(),
         }
 
-        self.log_dict(
-            logging_losses,
+        self.log(
+            "train_loss",
+            losses["loss"],
+            on_step=True,
+            on_epoch=True,
+            prog_bar=True,
+            logger=True,
+        )
+        self.log(
+            "train_class_loss",
+            logging_losses["class_loss"],
+            on_step=True,
+            on_epoch=True,
+            prog_bar=True,
+            logger=True,
+        )
+        self.log(
+            "train_box_loss",
+            logging_losses["box_loss"],
             on_step=True,
             on_epoch=True,
             prog_bar=True,
@@ -121,13 +149,31 @@ class StarfishEfficientDetModel(LightningModule):
         }
 
         logging_losses = {
-            "validation_class_loss": outputs["class_loss"].detach(),
-            "validation_box_loss": outputs["box_loss"].detach(),
-            "validation_loss": outputs["loss"].detach().item(),
+            "class_loss": outputs["class_loss"].detach(),
+            "box_loss": outputs["box_loss"].detach(),
         }
 
-        self.log_dict(
-            logging_losses,
+        self.log(
+            "valid_loss",
+            outputs["loss"],
+            on_step=True,
+            on_epoch=True,
+            prog_bar=True,
+            logger=True,
+            sync_dist=True,
+        )
+        self.log(
+            "valid_class_loss",
+            logging_losses["class_loss"],
+            on_step=True,
+            on_epoch=True,
+            prog_bar=True,
+            logger=True,
+            sync_dist=True,
+        )
+        self.log(
+            "valid_box_loss",
+            logging_losses["box_loss"],
             on_step=True,
             on_epoch=True,
             prog_bar=True,
@@ -137,7 +183,16 @@ class StarfishEfficientDetModel(LightningModule):
 
         return {"loss": outputs["loss"], "batch_predictions": batch_predictions}
 
+    @typedispatch
     def predict(self, images: List):
+        """
+        For making predictions from images
+        Args:
+            images: a list of PIL images
+
+        Returns: a tuple of lists containing bboxes, predicted_class_labels, predicted_class_confidences
+
+        """
         image_sizes = [(image.size[1], image.size[0]) for image in images]
         images_tensor = torch.stack(
             [
@@ -149,6 +204,30 @@ class StarfishEfficientDetModel(LightningModule):
                 for image in images
             ]
         )
+
+        return self._run_inference(images_tensor, image_sizes)
+
+    def predict_from_tensor(self, images_tensor: torch.Tensor):
+        """
+        For making predictions from tensors returned from the model's dataloader
+        Args:
+            images_tensor: the images tensor returned from the dataloader
+
+        Returns: a tuple of lists containing bboxes, predicted_class_labels, predicted_class_confidences
+
+        """
+        if images_tensor.ndim == 3:
+            images_tensor = images_tensor.unsqueeze(0)
+        if (
+            images_tensor.shape[-1] != self.img_size
+            or images_tensor.shape[-2] != self.img_size
+        ):
+            raise ValueError(
+                f"Input tensors must be of shape (N, 3, {self.img_size}, {self.img_size})"
+            )
+
+        num_images = images_tensor.shape[0]
+        image_sizes = [(self.img_size, self.img_size)] * num_images
 
         return self._run_inference(images_tensor, image_sizes)
 
@@ -165,7 +244,8 @@ class StarfishEfficientDetModel(LightningModule):
             predicted_class_confidences,
             predicted_class_labels,
         ) = self.post_process_detections(detections)
-        scaled_bboxes = self._rescale_bboxes(
+
+        scaled_bboxes = self.__rescale_bboxes(
             predicted_bboxes=predicted_bboxes, image_sizes=image_sizes
         )
 
@@ -204,13 +284,11 @@ class StarfishEfficientDetModel(LightningModule):
         scores = detections.detach().cpu().numpy()[:, 4]
         classes = detections.detach().cpu().numpy()[:, 5]
         indexes = np.where(scores > self.prediction_confidence_threshold)[0]
-        return {
-            "boxes": boxes[indexes],
-            "scores": scores[indexes],
-            "classes": classes[indexes],
-        }
+        boxes = boxes[indexes]
 
-    def _rescale_bboxes(self, predicted_bboxes, image_sizes):
+        return {"boxes": boxes, "scores": scores[indexes], "classes": classes[indexes]}
+
+    def __rescale_bboxes(self, predicted_bboxes, image_sizes):
         scaled_bboxes = []
         for bboxes, img_dims in zip(predicted_bboxes, image_sizes):
             im_h, im_w = img_dims
@@ -231,68 +309,3 @@ class StarfishEfficientDetModel(LightningModule):
                 scaled_bboxes.append(bboxes)
 
         return scaled_bboxes
-
-    def aggregate_prediction_outputs(self, outputs):
-        detections = torch.cat(
-            [output["batch_predictions"]["predictions"] for output in outputs]
-        )
-
-        image_ids = []
-        targets = []
-        for output in outputs:
-            batch_predictions = output["batch_predictions"]
-            targets.extend(batch_predictions["targets"])
-            image_ids.extend(batch_predictions["image_ids"])
-
-        (
-            predicted_bboxes,
-            predicted_class_confidences,
-            predicted_class_labels,
-        ) = self.post_process_detections(detections)
-
-        return (
-            predicted_class_labels,
-            image_ids,
-            predicted_bboxes,
-            predicted_class_confidences,
-            targets,
-        )
-
-    def validation_epoch_end(self, outputs):
-        """Compute and log training loss and accuracy at the epoch level."""
-
-        validation_loss_mean = torch.stack(
-            [output["loss"] for output in outputs]
-        ).mean()
-
-        (
-            predicted_class_labels,
-            image_ids,
-            predicted_bboxes,
-            predicted_class_confidences,
-            targets,
-        ) = self.aggregate_prediction_outputs(outputs)
-
-        truth_image_ids = [target["image_id"].detach().item() for target in targets]
-        truth_boxes = [
-            target["bboxes"].detach()[:, [1, 0, 3, 2]].tolist() for target in targets
-        ]  # convert to xyxy for evaluation
-        truth_labels = [target["labels"].detach().tolist() for target in targets]
-
-        stats = get_coco_stats(
-            prediction_image_ids=image_ids,
-            predicted_class_confidences=predicted_class_confidences,
-            predicted_bboxes=predicted_bboxes,
-            predicted_class_labels=predicted_class_labels,
-            target_image_ids=truth_image_ids,
-            target_bboxes=truth_boxes,
-            target_class_labels=truth_labels,
-        )["All"]
-
-        self.log("val_loss", validation_loss_mean, on_epoch=True, logger=True)
-
-        self.log("mAP_0_50", stats["AP_all_IOU_0_50"], on_epoch=True, logger=True)
-
-        self.log("mAP_0_50_95", stats["AP_all"], on_epoch=True, logger=True)
-
-        return {"val_loss": validation_loss_mean, "metrics": stats}
