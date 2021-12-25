@@ -44,10 +44,18 @@ def run_wbf(predictions, image_size=512, iou_thr=0.44, skip_box_thr=0.43, weight
     return bboxes, confidences, class_labels
 
 
-def create_model(num_classes=1, image_size=512, architecture="tf_efficientdet_d0"):
+def create_model(
+    num_classes=1,
+    image_size=512,
+    anchor_scale=4,
+    num_scales=3,
+    architecture="tf_efficientdet_d0",
+):
     config = get_efficientdet_config(architecture)
     config.update({"num_classes": num_classes})
     config.update({"image_size": (image_size, image_size)})
+    config.update({"anchor_scale": anchor_scale})
+    config.update({"num_scales": num_scales})
 
     print(config)
 
@@ -65,15 +73,19 @@ class StarfishEfficientDetModel(LightningModule):
         num_classes=1,
         img_size=512,
         prediction_confidence_threshold=0.2,
-        learning_rate=0.0002,
+        learning_rate=3e-4,
         wbf_iou_threshold=0.44,
         inference_transforms=get_valid_transforms(target_img_size=512),
         model_architecture="tf_efficientdet_d0",
+        anchor_scale=4,
     ):
         super().__init__()
         self.img_size = img_size
         self.model = create_model(
-            num_classes, img_size, architecture=model_architecture
+            num_classes=num_classes,
+            image_size=img_size,
+            anchor_scale=anchor_scale,
+            architecture=model_architecture,
         )
         self.prediction_confidence_threshold = prediction_confidence_threshold
         self.lr = learning_rate
@@ -89,8 +101,8 @@ class StarfishEfficientDetModel(LightningModule):
             self.model.parameters(),
             lr=self.lr,
         )
-        lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-            optimizer, patience=5, verbose=True
+        lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
+            optimizer, T_0=15, verbose=True, eta_min=1e-6
         )
         return {
             "optimizer": optimizer,
@@ -99,18 +111,18 @@ class StarfishEfficientDetModel(LightningModule):
         }
 
     def training_step(self, batch, batch_idx):
-        images, annotations, _, image_ids = batch
+        images, annotations, targets, image_ids = batch
 
-        losses = self.model(images, annotations)
+        outputs = self.model(images, annotations)
 
         logging_losses = {
-            "class_loss": losses["class_loss"].detach(),
-            "box_loss": losses["box_loss"].detach(),
+            "class_loss": outputs["class_loss"].detach(),
+            "box_loss": outputs["box_loss"].detach(),
         }
 
         self.log(
             "train_loss",
-            losses["loss"],
+            outputs["loss"],
             on_step=True,
             on_epoch=True,
             prog_bar=True,
@@ -133,13 +145,13 @@ class StarfishEfficientDetModel(LightningModule):
             logger=True,
         )
 
-        return losses["loss"]
+        return {"loss": outputs["loss"]}
 
     @torch.no_grad()
     def validation_step(self, batch, batch_idx):
         images, annotations, targets, image_ids = batch
-        outputs = self.model(images, annotations)
 
+        outputs = self.model(images, annotations)
         detections = outputs["detections"]
 
         batch_predictions = {
@@ -309,3 +321,65 @@ class StarfishEfficientDetModel(LightningModule):
                 scaled_bboxes.append(bboxes)
 
         return scaled_bboxes
+
+    def aggregate_prediction_outputs(self, outputs):
+
+        detections = torch.cat(
+            [output["batch_predictions"]["predictions"] for output in outputs]
+        )
+
+        image_ids = []
+        targets = []
+        for output in outputs:
+            batch_predictions = output["batch_predictions"]
+            image_ids.extend(batch_predictions["image_ids"])
+            targets.extend(batch_predictions["targets"])
+
+        (
+            predicted_bboxes,
+            predicted_class_confidences,
+            predicted_class_labels,
+        ) = self.post_process_detections(detections)
+
+        return (
+            predicted_class_labels,
+            image_ids,
+            predicted_bboxes,
+            predicted_class_confidences,
+            targets,
+        )
+
+    def validation_epoch_end(self, outputs):
+        """Compute and log training loss and accuracy at the epoch level."""
+
+        (
+            predicted_class_labels,
+            image_ids,
+            predicted_bboxes,
+            predicted_class_confidences,
+            targets,
+        ) = self.aggregate_prediction_outputs(outputs)
+
+        truth_image_ids = [target["image_id"].detach().item() for target in targets]
+        truth_boxes = [
+            target["bboxes"].detach()[:, [1, 0, 3, 2]].tolist() for target in targets
+        ]  # convert to xyxy for evaluation
+        truth_labels = [target["labels"].detach().tolist() for target in targets]
+
+        stats = get_coco_stats(
+            prediction_image_ids=image_ids,
+            predicted_class_confidences=predicted_class_confidences,
+            predicted_bboxes=predicted_bboxes,
+            predicted_class_labels=predicted_class_labels,
+            target_image_ids=truth_image_ids,
+            target_bboxes=truth_boxes,
+            target_class_labels=truth_labels,
+        )["All"]
+        self.log_dict(
+            stats,
+            on_step=False,
+            on_epoch=True,
+            prog_bar=True,
+            logger=True,
+            sync_dist=True,
+        )

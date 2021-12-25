@@ -4,11 +4,10 @@ import pandas as pd
 import PIL
 from pathlib import Path
 import matplotlib.pyplot as plt
-from matplotlib import patches
 from ast import literal_eval
 import albumentations as A
 import torch
-from great_barrier_reef.utils import get_valid_transforms
+from great_barrier_reef.utils import get_valid_transforms, draw_pascal_voc_bboxes
 
 
 def get_bboxes_from_annotation(annotation: list, im_width: int, im_height: int):
@@ -29,44 +28,11 @@ def get_bboxes_from_annotation(annotation: list, im_width: int, im_height: int):
     return bboxes, False
 
 
-def get_rectangle_edges_from_pascal_bbox(bbox):
-    xmin_top_left, ymin_top_left, xmax_bottom_right, ymax_bottom_right = bbox
-
-    bottom_left = (xmin_top_left, ymax_bottom_right)
-    width = xmax_bottom_right - xmin_top_left
-    height = ymin_top_left - ymax_bottom_right
-
-    return bottom_left, width, height
-
-
-def draw_pascal_voc_bboxes(
-    plot_ax,
-    bboxes,
-    get_rectangle_corners_fn=get_rectangle_edges_from_pascal_bbox,
-):
-    for bbox in bboxes:
-        bottom_left, width, height = get_rectangle_corners_fn(bbox)
-
-        rect_1 = patches.Rectangle(
-            bottom_left,
-            width,
-            height,
-            linewidth=4,
-            edgecolor="black",
-            fill=False,
-        )
-        rect_2 = patches.Rectangle(
-            bottom_left,
-            width,
-            height,
-            linewidth=2,
-            edgecolor="white",
-            fill=False,
-        )
-
-        # Add the patch to the Axes
-        plot_ax.add_patch(rect_1)
-        plot_ax.add_patch(rect_2)
+def get_area(annotation):
+    total_bbox_area_images = 0
+    for ann in annotation:
+        total_bbox_area_images += ann["width"] * ann["height"]
+    return total_bbox_area_images
 
 
 class StarfishDatasetAdapter(object):
@@ -76,6 +42,7 @@ class StarfishDatasetAdapter(object):
         self.images_dir_path = Path(images_dir_path)
         self.image_paths = self.prepare_image_paths()
         self.annotations = self.prepare_annotations()
+        self.total_areas = self.prepare_total_areas()
 
     def __len__(self) -> int:
         return len(self.images)
@@ -105,6 +72,10 @@ class StarfishDatasetAdapter(object):
     def prepare_annotations(self) -> np.ndarray:
         annotations = self.annotations_df["annotations"].apply(literal_eval).values
         return annotations
+
+    def prepare_total_areas(self) -> np.ndarray:
+        total_areas = [get_area(x) for x in self.annotations]
+        return total_areas
 
     def show_image(self, index):
         image, bboxes, class_labels, image_id = self.get_image_and_labels_by_idx(index)
