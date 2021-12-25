@@ -2,6 +2,7 @@ from pytorch_lightning import LightningDataModule
 from torch.utils.data import DataLoader
 import albumentations as A
 from .starfish_dataset import StarfishDataset
+from great_barrier_reef.utils import get_train_transforms, get_valid_transforms
 import pandas as pd
 import torch
 
@@ -9,34 +10,30 @@ import torch
 class StarfishDataModule(LightningDataModule):
     def __init__(
         self,
-        train_data: pd.DataFrame,
-        validation_data: pd.DataFrame,
-        train_transforms: A.Compose,
-        validation_transforms: A.Compose,
-        images_dir_path: str = "../data/train_images/",
+        train_dataset_adaptor,
+        validation_dataset_adaptor,
+        train_transforms=get_train_transforms(target_img_size=512),
+        valid_transforms=get_valid_transforms(target_img_size=512),
         num_workers=4,
         batch_size=8,
     ):
 
-        super().__init__()
-        self.train_data = train_data
-        self.validation_data = validation_data
-        self.train_transforms = train_transforms
-        self.validation_transforms = validation_transforms
-        self.images_dir_path = images_dir_path
+        self.train_ds = train_dataset_adaptor
+        self.valid_ds = validation_dataset_adaptor
+        self.train_tfms = train_transforms
+        self.valid_tfms = valid_transforms
         self.num_workers = num_workers
         self.batch_size = batch_size
+        super().__init__()
 
     def train_dataset(self) -> StarfishDataset:
         return StarfishDataset(
-            annotations_dataframe=self.train_data,
-            transforms=self.train_transforms,
-            images_dir_path=self.images_dir_path,
+            dataset_adaptor=self.train_ds, transforms=self.train_tfms
         )
 
     def train_dataloader(self) -> DataLoader:
         train_dataset = self.train_dataset()
-        train_loader = DataLoader(
+        train_loader = torch.utils.data.DataLoader(
             train_dataset,
             batch_size=self.batch_size,
             shuffle=True,
@@ -50,14 +47,12 @@ class StarfishDataModule(LightningDataModule):
 
     def val_dataset(self) -> StarfishDataset:
         return StarfishDataset(
-            annotations_dataframe=self.validation_data,
-            transforms=self.validation_transforms,
-            images_dir_path=self.images_dir_path,
+            dataset_adaptor=self.valid_ds, transforms=self.valid_tfms
         )
 
     def val_dataloader(self) -> DataLoader:
         valid_dataset = self.val_dataset()
-        valid_loader = DataLoader(
+        valid_loader = torch.utils.data.DataLoader(
             valid_dataset,
             batch_size=self.batch_size,
             shuffle=False,
@@ -71,7 +66,7 @@ class StarfishDataModule(LightningDataModule):
 
     @staticmethod
     def collate_fn(batch):
-        images, targets, image_names = tuple(zip(*batch))
+        images, targets, image_ids = tuple(zip(*batch))
         images = torch.stack(images)
         images = images.float()
 
@@ -87,4 +82,4 @@ class StarfishDataModule(LightningDataModule):
             "img_scale": img_scale,
         }
 
-        return images, annotations, targets
+        return images, annotations, targets, image_ids

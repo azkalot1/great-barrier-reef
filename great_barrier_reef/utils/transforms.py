@@ -1,5 +1,3 @@
-from torch.utils.data import Dataset
-
 import albumentations as A
 from albumentations.pytorch.transforms import ToTensorV2
 
@@ -7,9 +5,16 @@ from albumentations.pytorch.transforms import ToTensorV2
 def get_train_transforms(target_img_size=512):
     return A.Compose(
         [
-            A.HorizontalFlip(p=0.5),
+            A.OneOf(
+                [
+                    A.HorizontalFlip(p=0.5),
+                    A.VerticalFlip(p=0.5),
+                ],
+                p=0.75,
+            ),
+            A.RandomBrightnessContrast(p=0.2),
             A.Resize(height=target_img_size, width=target_img_size, p=1),
-            A.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
+            A.Normalize(p=1.0),
             ToTensorV2(p=1),
         ],
         p=1.0,
@@ -23,7 +28,7 @@ def get_valid_transforms(target_img_size=512):
     return A.Compose(
         [
             A.Resize(height=target_img_size, width=target_img_size, p=1),
-            A.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
+            A.Normalize(p=1.0),
             ToTensorV2(p=1),
         ],
         p=1.0,
