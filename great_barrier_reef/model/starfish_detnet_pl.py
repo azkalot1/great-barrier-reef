@@ -18,7 +18,7 @@ from ensemble_boxes import ensemble_boxes_wbf
 from objdetecteval.metrics.coco_metrics import get_coco_stats
 
 
-def run_wbf(predictions, image_size=512, iou_thr=0.44, skip_box_thr=0.43, weights=None):
+def run_wbf(predictions, image_size=512, iou_thr=0.3, skip_box_thr=0.1, weights=None):
     bboxes = []
     confidences = []
     class_labels = []
@@ -72,7 +72,7 @@ class StarfishEfficientDetModel(LightningModule):
         self,
         num_classes=1,
         img_size=512,
-        prediction_confidence_threshold=0.2,
+        prediction_confidence_threshold=0.1,
         learning_rate=3e-4,
         wbf_iou_threshold=0.44,
         inference_transforms=get_valid_transforms(target_img_size=512),
@@ -296,9 +296,12 @@ class StarfishEfficientDetModel(LightningModule):
         scores = detections.detach().cpu().numpy()[:, 4]
         classes = detections.detach().cpu().numpy()[:, 5]
         indexes = np.where(scores > self.prediction_confidence_threshold)[0]
-        boxes = boxes[indexes]
 
-        return {"boxes": boxes, "scores": scores[indexes], "classes": classes[indexes]}
+        return {
+            "boxes": boxes[indexes],
+            "scores": scores[indexes],
+            "classes": classes[indexes],
+        }
 
     def __rescale_bboxes(self, predicted_bboxes, image_sizes):
         scaled_bboxes = []
