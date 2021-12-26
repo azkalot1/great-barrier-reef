@@ -7,3 +7,5 @@ from .utils import (
     get_valid_transforms_pad,
     get_train_transforms_pad,
 )
+
+__version__ = "0.0.1"
