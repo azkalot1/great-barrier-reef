@@ -1,1 +1,2 @@
 from .starfish_detnet_pl import StarfishEfficientDetModel
+from .starfish_classification_pl import StarfishClassifyIsEmptyModel

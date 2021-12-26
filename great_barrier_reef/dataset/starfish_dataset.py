@@ -52,12 +52,12 @@ class StarfishDatasetAdapter(object):
         # image_names = self.images[index]
         image = PIL.Image.open(self.images_dir_path / image_path)
         width, height = image.size
-        bboxes, was_empty = get_bboxes_from_annotation(
+        bboxes, image_is_empty = get_bboxes_from_annotation(
             self.annotations[index], width, height
         )
         class_labels = np.ones(len(bboxes))
 
-        return image, bboxes, class_labels, index
+        return image, bboxes, class_labels, index, image_is_empty
 
     def prepare_image_paths(self) -> np.ndarray:
         image_paths = self.annotations_df.apply(
@@ -78,8 +78,8 @@ class StarfishDatasetAdapter(object):
         return total_areas
 
     def show_image(self, index):
-        image, bboxes, class_labels, image_id = self.get_image_and_labels_by_idx(index)
-        print(f"image_id: {image_id}")
+        image, bboxes, class_labels, image_id, image_is_empty = self.get_image_and_labels_by_idx(index)
+        print(f"image_id: {image_id}, is empty? {image_is_empty}")
         self._show_image(image, bboxes)
         print(class_labels)
 
@@ -110,6 +110,7 @@ class StarfishDataset(Dataset):
             pascal_bboxes,
             class_labels,
             image_id,
+            image_is_empty
         ) = self.ds.get_image_and_labels_by_idx(index)
 
         sample = {
@@ -135,6 +136,7 @@ class StarfishDataset(Dataset):
             "image_id": torch.tensor([image_id]),
             "img_size": (new_h, new_w),
             "img_scale": torch.tensor([1.0]),
+            "image_is_empty": torch.tensor([1]).int() if image_is_empty else torch.tensor([0])
         }
 
         return image, target, image_id

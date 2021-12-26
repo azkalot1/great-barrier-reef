@@ -74,12 +74,14 @@ class StarfishDataModule(LightningDataModule):
         labels = [target["labels"].float() for target in targets]
         img_size = torch.tensor([target["img_size"] for target in targets]).float()
         img_scale = torch.tensor([target["img_scale"] for target in targets]).float()
+        img_is_empty = torch.tensor([target["image_is_empty"] for target in targets]).unsqueeze(1)
 
         annotations = {
             "bbox": boxes,
             "cls": labels,
             "img_size": img_size,
             "img_scale": img_scale,
+            'img_is_empty': img_is_empty
         }
 
         return images, annotations, targets, image_ids
