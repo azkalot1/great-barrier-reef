@@ -132,3 +132,4 @@ dmypy.json
 data/
 
 notebooks/lightning_logs/
+notebooks/logs/

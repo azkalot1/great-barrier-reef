@@ -78,7 +78,13 @@ class StarfishDatasetAdapter(object):
         return total_areas
 
     def show_image(self, index):
-        image, bboxes, class_labels, image_id, image_is_empty = self.get_image_and_labels_by_idx(index)
+        (
+            image,
+            bboxes,
+            class_labels,
+            image_id,
+            image_is_empty,
+        ) = self.get_image_and_labels_by_idx(index)
         print(f"image_id: {image_id}, is empty? {image_is_empty}")
         self._show_image(image, bboxes)
         print(class_labels)
@@ -110,7 +116,7 @@ class StarfishDataset(Dataset):
             pascal_bboxes,
             class_labels,
             image_id,
-            image_is_empty
+            image_is_empty,
         ) = self.ds.get_image_and_labels_by_idx(index)
 
         sample = {
@@ -136,7 +142,9 @@ class StarfishDataset(Dataset):
             "image_id": torch.tensor([image_id]),
             "img_size": (new_h, new_w),
             "img_scale": torch.tensor([1.0]),
-            "image_is_empty": torch.tensor([1]).int() if image_is_empty else torch.tensor([0])
+            "image_is_empty": torch.tensor([1]).int()
+            if image_is_empty
+            else torch.tensor([0]),
         }
 
         return image, target, image_id

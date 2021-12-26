@@ -24,9 +24,9 @@ def run_wbf(predictions, image_size=512, iou_thr=0.3, skip_box_thr=0.1, weights=
     class_labels = []
 
     for prediction in predictions:
-        boxes = [(prediction['boxes'] / image_size).tolist()]
-        scores = [prediction['scores'].tolist()]
-        labels = [prediction['classes'].tolist()]
+        boxes = [(prediction["boxes"] / image_size).tolist()]
+        scores = [prediction["scores"].tolist()]
+        labels = [prediction["classes"].tolist()]
 
         boxes, scores, labels = ensemble_boxes_wbf.weighted_boxes_fusion(
             boxes,
@@ -44,12 +44,18 @@ def run_wbf(predictions, image_size=512, iou_thr=0.3, skip_box_thr=0.1, weights=
     return bboxes, confidences, class_labels
 
 
-def create_model(num_classes=1, image_size=512, anchor_scale=4, num_scales=3, architecture='tf_efficientdet_d0'):
+def create_model(
+    num_classes=1,
+    image_size=512,
+    anchor_scale=4,
+    num_scales=3,
+    architecture="tf_efficientdet_d0",
+):
     config = get_efficientdet_config(architecture)
-    config.update({'num_classes': num_classes})
-    config.update({'image_size': (image_size, image_size)})
-    config.update({'anchor_scale': anchor_scale})
-    config.update({'num_scales': num_scales})
+    config.update({"num_classes": num_classes})
+    config.update({"image_size": (image_size, image_size)})
+    config.update({"anchor_scale": anchor_scale})
+    config.update({"num_scales": num_scales})
 
     print(config)
 
@@ -70,7 +76,7 @@ class StarfishEfficientDetModel(LightningModule):
         learning_rate=3e-4,
         wbf_iou_threshold=0.44,
         inference_transforms=get_valid_transforms(target_img_size=512),
-        model_architecture='tf_efficientdet_d0',
+        model_architecture="tf_efficientdet_d0",
         anchor_scale=4,
     ):
         super().__init__()
@@ -79,7 +85,7 @@ class StarfishEfficientDetModel(LightningModule):
             num_classes=num_classes,
             image_size=img_size,
             anchor_scale=anchor_scale,
-            architecture=model_architecture
+            architecture=model_architecture,
         )
         self.prediction_confidence_threshold = prediction_confidence_threshold
         self.lr = learning_rate
@@ -99,9 +105,9 @@ class StarfishEfficientDetModel(LightningModule):
             optimizer, T_0=15, verbose=True, eta_min=1e-6
         )
         return {
-            'optimizer': optimizer,
-            'lr_scheduler': lr_scheduler,
-            'monitor': 'valid_loss_epoch',
+            "optimizer": optimizer,
+            "lr_scheduler": lr_scheduler,
+            "monitor": "valid_loss_epoch",
         }
 
     def training_step(self, batch, batch_idx):
@@ -110,58 +116,58 @@ class StarfishEfficientDetModel(LightningModule):
         outputs = self.model(images, annotations)
 
         logging_losses = {
-            'class_loss': outputs['class_loss'].detach(),
-            'box_loss': outputs['box_loss'].detach(),
+            "class_loss": outputs["class_loss"].detach(),
+            "box_loss": outputs["box_loss"].detach(),
         }
 
         self.log(
-            'train_loss',
-            outputs['loss'],
+            "train_loss",
+            outputs["loss"],
             on_step=True,
             on_epoch=True,
             prog_bar=True,
             logger=True,
         )
         self.log(
-            'train_class_loss',
-            logging_losses['class_loss'],
+            "train_class_loss",
+            logging_losses["class_loss"],
             on_step=True,
             on_epoch=True,
             prog_bar=True,
             logger=True,
         )
         self.log(
-            'train_box_loss',
-            logging_losses['box_loss'],
+            "train_box_loss",
+            logging_losses["box_loss"],
             on_step=True,
             on_epoch=True,
             prog_bar=True,
             logger=True,
         )
 
-        return {'loss': outputs['loss']}
+        return {"loss": outputs["loss"]}
 
     @torch.no_grad()
     def validation_step(self, batch, batch_idx):
         images, annotations, targets, image_ids = batch
 
         outputs = self.model(images, annotations)
-        detections = outputs['detections']
+        detections = outputs["detections"]
 
         batch_predictions = {
-            'predictions': detections,
-            'targets': targets,
-            'image_ids': image_ids,
+            "predictions": detections,
+            "targets": targets,
+            "image_ids": image_ids,
         }
 
         logging_losses = {
-            'class_loss': outputs['class_loss'].detach(),
-            'box_loss': outputs['box_loss'].detach(),
+            "class_loss": outputs["class_loss"].detach(),
+            "box_loss": outputs["box_loss"].detach(),
         }
 
         self.log(
-            'valid_loss',
-            outputs['loss'],
+            "valid_loss",
+            outputs["loss"],
             on_step=True,
             on_epoch=True,
             prog_bar=True,
@@ -169,8 +175,8 @@ class StarfishEfficientDetModel(LightningModule):
             sync_dist=True,
         )
         self.log(
-            'valid_class_loss',
-            logging_losses['class_loss'],
+            "valid_class_loss",
+            logging_losses["class_loss"],
             on_step=True,
             on_epoch=True,
             prog_bar=True,
@@ -178,8 +184,8 @@ class StarfishEfficientDetModel(LightningModule):
             sync_dist=True,
         )
         self.log(
-            'valid_box_loss',
-            logging_losses['box_loss'],
+            "valid_box_loss",
+            logging_losses["box_loss"],
             on_step=True,
             on_epoch=True,
             prog_bar=True,
@@ -187,7 +193,7 @@ class StarfishEfficientDetModel(LightningModule):
             sync_dist=True,
         )
 
-        return {'loss': outputs['loss'], 'batch_predictions': batch_predictions}
+        return {"loss": outputs["loss"], "batch_predictions": batch_predictions}
 
     @typedispatch
     def predict(self, images: List):
@@ -206,7 +212,7 @@ class StarfishEfficientDetModel(LightningModule):
                     image=np.array(image, dtype=np.float32),
                     labels=np.ones(1),
                     bboxes=np.array([[0, 0, 1, 1]]),
-                )['image']
+                )["image"]
                 for image in images
             ]
         )
@@ -229,7 +235,7 @@ class StarfishEfficientDetModel(LightningModule):
             or images_tensor.shape[-2] != self.img_size
         ):
             raise ValueError(
-                f'Input tensors must be of shape (N, 3, {self.img_size}, {self.img_size})'
+                f"Input tensors must be of shape (N, 3, {self.img_size}, {self.img_size})"
             )
 
         num_images = images_tensor.shape[0]
@@ -243,7 +249,7 @@ class StarfishEfficientDetModel(LightningModule):
         )
 
         detections = self.model(images_tensor.to(self.device), dummy_targets)[
-            'detections'
+            "detections"
         ]
         (
             predicted_bboxes,
@@ -259,15 +265,15 @@ class StarfishEfficientDetModel(LightningModule):
 
     def _create_dummy_inference_targets(self, num_images):
         dummy_targets = {
-            'bbox': [
+            "bbox": [
                 torch.tensor([[0.0, 0.0, 0.0, 0.0]], device=self.device)
                 for i in range(num_images)
             ],
-            'cls': [torch.tensor([1.0], device=self.device) for i in range(num_images)],
-            'img_size': torch.tensor(
+            "cls": [torch.tensor([1.0], device=self.device) for i in range(num_images)],
+            "img_size": torch.tensor(
                 [(self.img_size, self.img_size)] * num_images, device=self.device
             ).float(),
-            'img_scale': torch.ones(num_images, device=self.device).float(),
+            "img_scale": torch.ones(num_images, device=self.device).float(),
         }
 
         return dummy_targets
@@ -291,7 +297,11 @@ class StarfishEfficientDetModel(LightningModule):
         classes = detections.detach().cpu().numpy()[:, 5]
         indexes = np.where(scores > self.prediction_confidence_threshold)[0]
 
-        return {'boxes': boxes[indexes], 'scores': scores[indexes], 'classes': classes[indexes]}
+        return {
+            "boxes": boxes[indexes],
+            "scores": scores[indexes],
+            "classes": classes[indexes],
+        }
 
     def __rescale_bboxes(self, predicted_bboxes, image_sizes):
         scaled_bboxes = []
@@ -318,15 +328,15 @@ class StarfishEfficientDetModel(LightningModule):
     def aggregate_prediction_outputs(self, outputs):
 
         detections = torch.cat(
-            [output['batch_predictions']['predictions'] for output in outputs]
+            [output["batch_predictions"]["predictions"] for output in outputs]
         )
 
         image_ids = []
         targets = []
         for output in outputs:
-            batch_predictions = output['batch_predictions']
-            image_ids.extend(batch_predictions['image_ids'])
-            targets.extend(batch_predictions['targets'])
+            batch_predictions = output["batch_predictions"]
+            image_ids.extend(batch_predictions["image_ids"])
+            targets.extend(batch_predictions["targets"])
 
         (
             predicted_bboxes,
@@ -353,11 +363,11 @@ class StarfishEfficientDetModel(LightningModule):
             targets,
         ) = self.aggregate_prediction_outputs(outputs)
 
-        truth_image_ids = [target['image_id'].detach().item() for target in targets]
+        truth_image_ids = [target["image_id"].detach().item() for target in targets]
         truth_boxes = [
-            target['bboxes'].detach()[:, [1, 0, 3, 2]].tolist() for target in targets
-        ] # convert to xyxy for evaluation
-        truth_labels = [target['labels'].detach().tolist() for target in targets]
+            target["bboxes"].detach()[:, [1, 0, 3, 2]].tolist() for target in targets
+        ]  # convert to xyxy for evaluation
+        truth_labels = [target["labels"].detach().tolist() for target in targets]
 
         stats = get_coco_stats(
             prediction_image_ids=image_ids,
@@ -367,7 +377,7 @@ class StarfishEfficientDetModel(LightningModule):
             target_image_ids=truth_image_ids,
             target_bboxes=truth_boxes,
             target_class_labels=truth_labels,
-        )['All']
+        )["All"]
         self.log_dict(
             stats,
             on_step=False,
