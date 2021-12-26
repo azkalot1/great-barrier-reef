@@ -50,6 +50,7 @@ def create_model(
     anchor_scale=4,
     num_scales=3,
     architecture="tf_efficientdet_d0",
+    pretrained_backbone=True,
 ):
     config = get_efficientdet_config(architecture)
     config.update({"num_classes": num_classes})
@@ -59,7 +60,7 @@ def create_model(
 
     print(config)
 
-    net = EfficientDet(config, pretrained_backbone=True)
+    net = EfficientDet(config, pretrained_backbone=pretrained_backbone)
     net.class_net = HeadNet(
         config,
         num_outputs=config.num_classes,
@@ -78,6 +79,7 @@ class StarfishEfficientDetModel(LightningModule):
         inference_transforms=get_valid_transforms(target_img_size=512),
         model_architecture="tf_efficientdet_d0",
         anchor_scale=4,
+        pretrained_backbone=True,
     ):
         super().__init__()
         self.img_size = img_size
@@ -86,6 +88,7 @@ class StarfishEfficientDetModel(LightningModule):
             image_size=img_size,
             anchor_scale=anchor_scale,
             architecture=model_architecture,
+            pretrained_backbone=pretrained_backbone,
         )
         self.prediction_confidence_threshold = prediction_confidence_threshold
         self.lr = learning_rate
@@ -200,12 +203,12 @@ class StarfishEfficientDetModel(LightningModule):
         """
         For making predictions from images
         Args:
-            images: a list of PIL images
+            images: a list of np arrays
 
         Returns: a tuple of lists containing bboxes, predicted_class_labels, predicted_class_confidences
 
         """
-        image_sizes = [(image.size[1], image.size[0]) for image in images]
+        image_sizes = [(image.size[0], image.size[1]) for image in images]
         images_tensor = torch.stack(
             [
                 self.inference_tfms(
