@@ -35,7 +35,7 @@ def get_area(annotation):
     return total_bbox_area_images
 
 
-class StarfishDatasetAdapter(object):
+class StarfishDatasetAdapter(Dataset):
     def __init__(self, annotations_dataframe, images_dir_path="../data/train_images/"):
         self.annotations_df = annotations_dataframe
         self.images = self.prepare_image_ids()
@@ -58,6 +58,9 @@ class StarfishDatasetAdapter(object):
         class_labels = np.ones(len(bboxes))
 
         return image, bboxes, class_labels, index, image_is_empty
+
+    def __getitem__(self, index):
+        return self.get_image_and_labels_by_idx(index)
 
     def prepare_image_paths(self) -> np.ndarray:
         image_paths = self.annotations_df.apply(
