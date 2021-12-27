@@ -37,7 +37,6 @@ def run_wbf(predictions, image_size=512, iou_thr=0.3, skip_box_thr=0.1, weights=
             skip_box_thr=skip_box_thr,
         )
         boxes = boxes * (image_size - 1)
-        boxes = boxes[:, [1, 0, 3, 2]]
         bboxes.append(boxes.tolist())
         confidences.append(scores.tolist())
         class_labels.append(labels.tolist())
@@ -105,8 +104,11 @@ class StarfishEfficientDetModel(LightningModule):
             self.model.parameters(),
             lr=self.lr,
         )
-        lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
-            optimizer, T_0=15, verbose=True, eta_min=1e-6
+        # lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
+        #    optimizer, T_0=15, verbose=True, eta_min=1e-6
+        # )
+        lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer, patience=3, verbose=True, factor=0.2
         )
         return {
             "optimizer": optimizer,
@@ -264,7 +266,6 @@ class StarfishEfficientDetModel(LightningModule):
         scaled_bboxes = self.__rescale_bboxes(
             predicted_bboxes=predicted_bboxes, image_sizes=image_sizes
         )
-        # scaled_bboxes = [np.array(x)[:, [1,0,3,2]].tolist() for x in scaled_bboxes]
 
         return scaled_bboxes, predicted_class_labels, predicted_class_confidences
 
@@ -320,7 +321,6 @@ class StarfishEfficientDetModel(LightningModule):
                     im_w / self.img_size,
                     im_h / self.img_size,
                 ]
-                bboxes_scaling = bboxes_scaling[:, [1, 0, 3, 2]]
                 scaled_bboxes.append(bboxes_scaling)
             else:
                 scaled_bboxes.append(bboxes)
@@ -368,7 +368,7 @@ class StarfishEfficientDetModel(LightningModule):
         truth_image_ids = [target["image_id"].detach().item() for target in targets]
         truth_boxes = [
             target["bboxes"].detach()[:, [1, 0, 3, 2]].tolist() for target in targets
-        ]  # convert to xyxy for evaluation
+        ]  # convert to xyxy for evaluation - model.eval() give output in xyxy already !!!
         truth_labels = [target["labels"].detach().tolist() for target in targets]
 
         stats = get_coco_stats(

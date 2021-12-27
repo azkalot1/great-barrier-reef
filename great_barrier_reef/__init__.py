@@ -6,7 +6,6 @@ from .utils import (
     compare_bboxes_for_image,
     get_valid_transforms_pad,
     get_train_transforms_pad,
-    validate_model,
 )
 
 __version__ = "0.0.1"
