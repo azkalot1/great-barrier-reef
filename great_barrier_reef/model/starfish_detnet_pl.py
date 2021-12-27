@@ -37,6 +37,7 @@ def run_wbf(predictions, image_size=512, iou_thr=0.3, skip_box_thr=0.1, weights=
             skip_box_thr=skip_box_thr,
         )
         boxes = boxes * (image_size - 1)
+        boxes = boxes[:, [1, 0, 3, 2]]
         bboxes.append(boxes.tolist())
         confidences.append(scores.tolist())
         class_labels.append(labels.tolist())
@@ -263,6 +264,7 @@ class StarfishEfficientDetModel(LightningModule):
         scaled_bboxes = self.__rescale_bboxes(
             predicted_bboxes=predicted_bboxes, image_sizes=image_sizes
         )
+        # scaled_bboxes = [np.array(x)[:, [1,0,3,2]].tolist() for x in scaled_bboxes]
 
         return scaled_bboxes, predicted_class_labels, predicted_class_confidences
 
@@ -312,17 +314,14 @@ class StarfishEfficientDetModel(LightningModule):
             im_h, im_w = img_dims
 
             if len(bboxes) > 0:
-                scaled_bboxes.append(
-                    (
-                        np.array(bboxes)
-                        * [
-                            im_w / self.img_size,
-                            im_h / self.img_size,
-                            im_w / self.img_size,
-                            im_h / self.img_size,
-                        ]
-                    ).tolist()
-                )
+                bboxes_scaling = np.array(bboxes) * [
+                    im_w / self.img_size,
+                    im_h / self.img_size,
+                    im_w / self.img_size,
+                    im_h / self.img_size,
+                ]
+                bboxes_scaling = bboxes_scaling[:, [1, 0, 3, 2]]
+                scaled_bboxes.append(bboxes_scaling)
             else:
                 scaled_bboxes.append(bboxes)
 
