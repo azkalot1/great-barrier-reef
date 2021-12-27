@@ -5,3 +5,4 @@ from .transforms import (
     get_valid_transforms_pad,
 )
 from .vizualization import draw_pascal_voc_bboxes, compare_bboxes_for_image
+from .validation import validate_model
