@@ -50,31 +50,31 @@ def train():
         num_classes=1,
         img_size=1280,
         inference_transforms=get_valid_transforms(target_img_size=1280),
-        model_architecture="tf_efficientdet_d0_ap",
-        learning_rate=1e-2,
+        model_architecture="cspresdet50",
+        learning_rate=1e-3,
     )
 
     callbacks = [
-        EarlyStopping(monitor="valid_loss_epoch", patience=15),
+        EarlyStopping(monitor="valid_loss_epoch", patience=20),
         ModelCheckpoint(verbose=True, monitor="valid_loss_epoch"),
         LearningRateMonitor(),
     ]
     loggers = [
-        CSVLogger(save_dir="csv_logs", name="ddp_full3"),
+        CSVLogger(save_dir="csv_logs", name="ddp_full9"),
         NeptuneLogger(
             api_key=NEPTUNE_API_TOKEN,
             project_name="azkalot1/reef",
-            experiment_name="ddp_full3",
+            experiment_name="ddp_full9",
         ),
     ]
     trainer = Trainer(
         callbacks=callbacks,
         logger=loggers,
-        gpus=4,
+        gpus=3,
         max_epochs=150,
         num_sanity_val_steps=1,
         precision=16,
-        accumulate_grad_batches=32,
+        accumulate_grad_batches=16,
         benchmark=True,
         deterministic=True,
         accelerator="ddp",
