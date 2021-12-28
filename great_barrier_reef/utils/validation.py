@@ -3,7 +3,7 @@ from ast import literal_eval
 import numpy as np
 from tqdm.auto import tqdm
 from great_barrier_reef.dataset import StarfishDatasetAdapter
-
+from objdetecteval.data.bbox_formats import convert_pascal_bbox_to_coco
 
 def calc_iou(bboxes1, bboxes2, bbox_mode="xywh"):
     assert len(bboxes1.shape) == 2 and bboxes1.shape[1] == 4
@@ -127,15 +127,6 @@ def prepare_gt(validation_df):
     return gt_bboxes_list
 
 
-def convert_bbox(bbox):
-    xmin_top_left, ymin_top_left, xmax_bottom_right, ymax_bottom_right = bbox
-
-    width = xmax_bottom_right - xmin_top_left
-    height = ymax_bottom_right - ymin_top_left
-
-    return int(xmin_top_left), int(ymin_top_left), int(width), int(height)
-
-
 def generate_validation_predictions(model, validation_df):
     val_predictions = []
     adapter_dataset_val = StarfishDatasetAdapter(validation_df)
@@ -153,7 +144,7 @@ def generate_validation_predictions(model, validation_df):
         for i in range(len(predicted_bboxes)):
             bbox = predicted_bboxes[i]
             score = predicted_class_confidences[i]
-            x_min, y_min, bbox_width, bbox_height = convert_bbox(bbox)
+            x_min, y_min, bbox_width, bbox_height = convert_pascal_bbox_to_coco(*bbox)
             predictions.append(np.array([score, x_min, y_min, bbox_width, bbox_height]))
         val_predictions.append(np.array(predictions))
     return val_predictions

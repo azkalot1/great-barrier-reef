@@ -104,12 +104,12 @@ class StarfishEfficientDetModel(LightningModule):
             self.model.parameters(),
             lr=self.lr,
         )
-        # lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
-        #    optimizer, T_0=15, verbose=True, eta_min=1e-6
-        # )
-        lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-            optimizer, patience=3, verbose=True, factor=0.2
+        lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
+            optimizer, T_0=15, verbose=True, eta_min=1e-6
         )
+        #lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        #    optimizer, patience=3, verbose=True, factor=0.2
+        #)
         return {
             "optimizer": optimizer,
             "lr_scheduler": lr_scheduler,
@@ -211,7 +211,7 @@ class StarfishEfficientDetModel(LightningModule):
         Returns: a tuple of lists containing bboxes, predicted_class_labels, predicted_class_confidences
 
         """
-        image_sizes = [(image.size[0], image.size[1]) for image in images]
+        image_sizes = [(image.size[1], image.size[0]) for image in images]
         images_tensor = torch.stack(
             [
                 self.inference_tfms(
