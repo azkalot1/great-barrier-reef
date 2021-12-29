@@ -30,6 +30,41 @@ def get_valid_transforms(target_img_size=512):
     )
 
 
+def get_train_transforms_crop(target_img_size=512):
+    return A.Compose(
+        [
+            A.RandomSizedBBoxSafeCrop(
+                height=target_img_size, width=target_img_size, p=1
+            ),
+            A.HorizontalFlip(p=0.5),
+            A.VerticalFlip(p=0.5),
+            A.RandomBrightnessContrast(p=0.2),
+            A.Normalize(p=1.0),
+            ToTensorV2(p=1),
+        ],
+        p=1.0,
+        bbox_params=A.BboxParams(
+            format="pascal_voc", min_area=0, min_visibility=0, label_fields=["labels"]
+        ),
+    )
+
+
+def get_valid_transforms_crop(target_img_size=512):
+    return A.Compose(
+        [
+            A.RandomSizedBBoxSafeCrop(
+                height=target_img_size, width=target_img_size, p=1
+            ),
+            A.Normalize(p=1.0),
+            ToTensorV2(p=1),
+        ],
+        p=1.0,
+        bbox_params=A.BboxParams(
+            format="pascal_voc", min_area=0, min_visibility=0, label_fields=["labels"]
+        ),
+    )
+
+
 def get_train_transforms_pad(target_img_size=512):
     return A.Compose(
         [
@@ -42,7 +77,6 @@ def get_train_transforms_pad(target_img_size=512):
             A.HorizontalFlip(p=0.5),
             A.VerticalFlip(p=0.5),
             A.RandomBrightnessContrast(p=0.2),
-            A.CLAHE(p=0.15),
             A.Normalize(p=1.0),
             ToTensorV2(p=1),
         ],
