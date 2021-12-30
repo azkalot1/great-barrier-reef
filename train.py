@@ -6,8 +6,6 @@ from great_barrier_reef import (
     get_train_transforms,
     get_valid_transforms,
     compare_bboxes_for_image,
-    get_train_transforms_pad,
-    get_valid_transforms_pad,
 )
 import pandas as pd
 from pytorch_lightning import Trainer
@@ -26,15 +24,20 @@ import torch
 def train():
     NEPTUNE_API_TOKEN = "eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vYXBwLm5lcHR1bmUuYWkiLCJhcGlfdXJsIjoiaHR0cHM6Ly9hcHAubmVwdHVuZS5haSIsImFwaV9rZXkiOiI2Yjg5NjBiZC02ZWJjLTQ2MWYtOWEzZi0wNDdiM2ZjMjdjNjMifQ=="
     data_df = pd.read_csv("data/train.csv")
-    non_empty_df = data_df.loc[data_df["annotations"] != "[]", :]
-    train_df = non_empty_df.loc[non_empty_df["video_id"] != 2, :]
-    val_df = non_empty_df.loc[non_empty_df["video_id"] == 2, :]
+    train_df = data_df.loc[data_df["video_id"] != 2, :]
+    val_df = data_df.loc[data_df["video_id"] == 2, :]
 
     adapter_dataset_train = StarfishDatasetAdapter(
-        train_df, images_dir_path="data/train_images/"
+        train_df,
+        images_dir_path="data/train_images/",
+        keep_empty=True,
+        apply_empty_aug=True,
     )
     adapter_dataset_val = StarfishDatasetAdapter(
-        val_df, images_dir_path="data/train_images/"
+        val_df,
+        images_dir_path="data/train_images/",
+        keep_empty=False,
+        apply_empty_aug=False,
     )
 
     datamodule = StarfishDataModule(
@@ -60,21 +63,23 @@ def train():
         LearningRateMonitor(),
     ]
     loggers = [
-        CSVLogger(save_dir="csv_logs", name="ddp_full9"),
+        CSVLogger(
+            save_dir="csv_logs", name="cspresdet50_full_resize1280_augEmpty_heavierAugs"
+        ),
         NeptuneLogger(
             api_key=NEPTUNE_API_TOKEN,
             project_name="azkalot1/reef",
-            experiment_name="ddp_full9",
+            experiment_name="cspresdet50_full_resize1280_augEmpty_heavierAugs",
         ),
     ]
     trainer = Trainer(
         callbacks=callbacks,
         logger=loggers,
-        gpus=3,
+        gpus=4,
         max_epochs=150,
         num_sanity_val_steps=1,
         precision=16,
-        accumulate_grad_batches=16,
+        accumulate_grad_batches=32,
         benchmark=True,
         deterministic=True,
         accelerator="ddp",

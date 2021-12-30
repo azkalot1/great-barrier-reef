@@ -8,36 +8,38 @@ from ast import literal_eval
 import albumentations as A
 import torch
 from great_barrier_reef.utils import get_valid_transforms, draw_pascal_voc_bboxes
-
-
-def get_bboxes_from_annotation(annotation: list, im_width: int, im_height: int):
-    if len(annotation) == 0:
-        return [[0, 0, 1, 1]], True
-    bboxes = []
-    # since we have our annotations in COCO (x_min, y_min, width, height),
-    # we need to convert in in pascal_voc
-    for ann in annotation:
-        bboxes.append(
-            [
-                ann["x"],
-                ann["y"],
-                min(ann["x"] + ann["width"], im_width),
-                min(ann["y"] + ann["height"], im_height),
-            ]
-        )
-    return bboxes, False
-
-
-def get_area(annotation):
-    total_bbox_area_images = 0
-    for ann in annotation:
-        total_bbox_area_images += ann["width"] * ann["height"]
-    return total_bbox_area_images
+from .utils import get_bboxes_from_annotation, get_area, fix_bboxes
+from .augmentation import ImageInsertAug
 
 
 class StarfishDatasetAdapter(Dataset):
-    def __init__(self, annotations_dataframe, images_dir_path="../data/train_images/"):
+    def __init__(
+        self,
+        annotations_dataframe,
+        images_dir_path="../data/train_images/",
+        keep_empty=True,
+        apply_empty_aug=False,
+    ):
+        self.keep_empty = keep_empty
+        self.apply_empty_aug = apply_empty_aug
+        if not self.keep_empty:
+            # remove empty annotations
+            annotations_dataframe = annotations_dataframe.loc[
+                annotations_dataframe["annotations"] != "[]", :
+            ]
         self.annotations_df = annotations_dataframe
+        self.empty_augmentator = None
+        if self.apply_empty_aug:
+            # prepare augmentation of empty images
+            assert (
+                self.keep_empty is not False
+            ), "Need to keep empty images to augment them"
+            self.empty_augmentator = ImageInsertAug(
+                non_empty_df=self.annotations_df.loc[
+                    self.annotations_df["annotations"] != "[]", :
+                ],
+                images_dir_path=images_dir_path,
+            )
         self.images = self.prepare_image_ids()
         self.images_dir_path = Path(images_dir_path)
         self.image_paths = self.prepare_image_paths()
@@ -55,6 +57,11 @@ class StarfishDatasetAdapter(Dataset):
         bboxes, image_is_empty = get_bboxes_from_annotation(
             self.annotations[index], width, height
         )
+        if image_is_empty and self.apply_empty_aug:
+            image, bboxes = self.empty_augmentator.augment_image(np.array(image))
+            image = PIL.Image.fromarray(image)
+            bboxes = fix_bboxes(bboxes, width, height)
+
         class_labels = np.ones(len(bboxes))
 
         return image, bboxes, class_labels, index, image_is_empty
@@ -123,13 +130,13 @@ class StarfishDataset(Dataset):
         ) = self.ds.get_image_and_labels_by_idx(index)
 
         sample = {
-            "image": np.array(image, dtype=np.float32),
+            "image": np.array(image, dtype=np.uint8),
             "bboxes": pascal_bboxes,
             "labels": class_labels,
         }
 
         sample = self.transforms(**sample)
-        sample["bboxes"] = np.array(sample["bboxes"])
+        sample["bboxes"] = np.array(sample["bboxes"], dtype=np.float32)
         image = sample["image"]
         pascal_bboxes = sample["bboxes"]
         labels = sample["labels"]
