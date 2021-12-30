@@ -16,6 +16,20 @@ def get_bboxes_from_annotation(annotation: list, im_width: int, im_height: int):
     return bboxes, False
 
 
+def fix_bboxes(bboxes: list, im_width: int, im_height: int):
+    bboxes_fixed = []
+    for bbox in bboxes:
+        bboxes_fixed.append(
+            [
+                bbox[0],
+                bbox[1],
+                min(bbox[2], im_width),
+                min(bbox[3], im_height),
+            ]
+        )
+    return bboxes_fixed
+
+
 def get_area(annotation):
     total_bbox_area_images = 0
     for ann in annotation:

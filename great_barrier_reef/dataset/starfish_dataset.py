@@ -8,7 +8,7 @@ from ast import literal_eval
 import albumentations as A
 import torch
 from great_barrier_reef.utils import get_valid_transforms, draw_pascal_voc_bboxes
-from .utils import get_bboxes_from_annotation, get_area
+from .utils import get_bboxes_from_annotation, get_area, fix_bboxes
 from .augmentation import ImageInsertAug
 
 
@@ -17,7 +17,7 @@ class StarfishDatasetAdapter(Dataset):
         self,
         annotations_dataframe,
         images_dir_path="../data/train_images/",
-        keep_empty=False,
+        keep_empty=True,
         apply_empty_aug=False,
     ):
         self.keep_empty = keep_empty
@@ -58,9 +58,10 @@ class StarfishDatasetAdapter(Dataset):
             self.annotations[index], width, height
         )
         if image_is_empty and self.apply_empty_aug:
-            print("applying aug")
             image, bboxes = self.empty_augmentator.augment_image(np.array(image))
             image = PIL.Image.fromarray(image)
+            bboxes = fix_bboxes(bboxes, width, height)
+
         class_labels = np.ones(len(bboxes))
 
         return image, bboxes, class_labels, index, image_is_empty
@@ -129,13 +130,13 @@ class StarfishDataset(Dataset):
         ) = self.ds.get_image_and_labels_by_idx(index)
 
         sample = {
-            "image": np.array(image, dtype=np.float32),
+            "image": np.array(image, dtype=np.uint8),
             "bboxes": pascal_bboxes,
             "labels": class_labels,
         }
 
         sample = self.transforms(**sample)
-        sample["bboxes"] = np.array(sample["bboxes"])
+        sample["bboxes"] = np.array(sample["bboxes"], dtype=np.float32)
         image = sample["image"]
         pascal_bboxes = sample["bboxes"]
         labels = sample["labels"]
