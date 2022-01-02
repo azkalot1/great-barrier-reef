@@ -19,6 +19,7 @@ class StarfishDatasetAdapter(Dataset):
         images_dir_path="../data/train_images/",
         keep_empty=True,
         apply_empty_aug=False,
+        **kwargs,
     ):
         self.keep_empty = keep_empty
         self.apply_empty_aug = apply_empty_aug
@@ -39,6 +40,7 @@ class StarfishDatasetAdapter(Dataset):
                     self.annotations_df["annotations"] != "[]", :
                 ],
                 images_dir_path=images_dir_path,
+                **kwargs,
             )
         self.images = self.prepare_image_ids()
         self.images_dir_path = Path(images_dir_path)
@@ -142,9 +144,13 @@ class StarfishDataset(Dataset):
         labels = sample["labels"]
 
         _, new_h, new_w = image.shape
-        sample["bboxes"][:, [0, 1, 2, 3]] = sample["bboxes"][
-            :, [1, 0, 3, 2]
-        ]  # convert to yxyx
+        if len(sample["bboxes"]) > 0:
+            sample["bboxes"][:, [0, 1, 2, 3]] = sample["bboxes"][
+                :, [1, 0, 3, 2]
+            ]  # convert to yxyx
+        else:
+            sample["bboxes"] = np.array([[0, 0, 1, 1]])
+            labels = np.zeros(1)
 
         target = {
             "bboxes": torch.as_tensor(sample["bboxes"], dtype=torch.float32),

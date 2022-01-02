@@ -105,11 +105,17 @@ class StarfishEfficientDetModel(LightningModule):
             lr=self.lr,
         )
         lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
-            optimizer, T_0=15, verbose=True, eta_min=1e-6
+            optimizer, T_0=15, verbose=True, eta_min=1e-7
         )
-        #lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        #    optimizer, patience=3, verbose=True, factor=0.2
-        #)
+        # lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        #    optimizer, patience=5, verbose=True, factor=0.2
+        # )
+        # lr_scheduler = torch.optim.lr_scheduler.OneCycleLR(
+        #    optimizer,
+        #    max_lr=self.lr,
+        #    steps_per_epoch=975,
+        #    epochs=50
+        # )
         return {
             "optimizer": optimizer,
             "lr_scheduler": lr_scheduler,
