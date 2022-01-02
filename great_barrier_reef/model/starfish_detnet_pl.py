@@ -71,6 +71,7 @@ def create_model(
 class StarfishEfficientDetModel(LightningModule):
     def __init__(
         self,
+        config,
         num_classes=1,
         img_size=512,
         prediction_confidence_threshold=0.1,
@@ -94,28 +95,20 @@ class StarfishEfficientDetModel(LightningModule):
         self.lr = learning_rate
         self.wbf_iou_threshold = wbf_iou_threshold
         self.inference_tfms = inference_transforms
+        self.config = config
+        self.save_hyperparameters("config")
 
     @auto_move_data
     def forward(self, images, targets):
         return self.model(images, targets)
 
     def configure_optimizers(self):
-        optimizer = torch.optim.AdamW(
-            self.model.parameters(),
-            lr=self.lr,
+        optimizer = getattr(torch.optim, self.config.optimizer.name)(
+            self.model.parameters(), lr=self.lr, **self.config.optimizer.args
         )
-        lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
-            optimizer, T_0=15, verbose=True, eta_min=1e-7
+        lr_scheduler = getattr(torch.optim.lr_scheduler, self.config.lr_scheduler.name)(
+            optimizer, **self.config.lr_scheduler.args
         )
-        # lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        #    optimizer, patience=5, verbose=True, factor=0.2
-        # )
-        # lr_scheduler = torch.optim.lr_scheduler.OneCycleLR(
-        #    optimizer,
-        #    max_lr=self.lr,
-        #    steps_per_epoch=975,
-        #    epochs=50
-        # )
         return {
             "optimizer": optimizer,
             "lr_scheduler": lr_scheduler,

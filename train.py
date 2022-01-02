@@ -3,12 +3,9 @@ from great_barrier_reef import (
     StarfishDatasetAdapter,
     StarfishDataModule,
     StarfishEfficientDetModel,
-    get_train_transforms_simple,
-    get_train_transforms_super_heavy,
-    get_train_transforms_heavy,
-    get_valid_transforms,
     compare_bboxes_for_image,
 )
+from great_barrier_reef.utils import transforms
 import pandas as pd
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import (
@@ -21,25 +18,26 @@ from pytorch_lightning.utilities.seed import seed_everything
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+from omegaconf import OmegaConf
 
 
-def train():
+def train(config):
     NEPTUNE_API_TOKEN = "eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vYXBwLm5lcHR1bmUuYWkiLCJhcGlfdXJsIjoiaHR0cHM6Ly9hcHAubmVwdHVuZS5haSIsImFwaV9rZXkiOiI2Yjg5NjBiZC02ZWJjLTQ2MWYtOWEzZi0wNDdiM2ZjMjdjNjMifQ=="
-    data_df = pd.read_csv("data/train.csv")
-    train_df = data_df.loc[data_df["video_id"] != 2, :]
-    val_df = data_df.loc[data_df["video_id"] == 2, :]
+    train_df = pd.read_csv(
+        f"{config.data.data_folder}/train_fold{config.data.fold}.csv"
+    )
+    val_df = pd.read_csv(f"{config.data.data_folder}/val_fold{config.data.fold}.csv")
 
     adapter_dataset_train = StarfishDatasetAdapter(
         train_df,
-        images_dir_path="data/train_images/",
-        keep_empty=True,
-        apply_empty_aug=True,
-        saved_crops_path="data/crops_val_fold2.pickle",
-        min_insert_starfish=7,
+        images_dir_path=f"{config.data.data_folder}/train_images/",
+        keep_empty=config.data.keep_empty_images,
+        apply_empty_aug=config.data.apply_empty_aug,
+        **config.data.augmentator_args,
     )
     adapter_dataset_val = StarfishDatasetAdapter(
         val_df,
-        images_dir_path="data/train_images/",
+        images_dir_path=f"{config.data.data_folder}/train_images/",
         keep_empty=False,
         apply_empty_aug=False,
     )
@@ -47,49 +45,55 @@ def train():
     datamodule = StarfishDataModule(
         adapter_dataset_train,
         adapter_dataset_val,
-        train_transforms=get_train_transforms_heavy(target_img_size=640),
-        valid_transforms=get_valid_transforms(target_img_size=640),
-        num_workers=8,
-        batch_size=16,
+        train_transforms=getattr(transforms, config.data.transforms)(
+            target_img_size=config.data.target_img_size
+        ),
+        valid_transforms=getattr(transforms, "valid_transforms")(
+            target_img_size=config.data.target_img_size
+        ),
+        num_workers=config.data.num_workers,
+        batch_size=config.data.batch_size,
     )
 
     model = StarfishEfficientDetModel(
         num_classes=1,
-        img_size=640,
-        inference_transforms=get_valid_transforms(target_img_size=640),
-        model_architecture="cspresdet50",
-        learning_rate=1e-3,
+        img_size=config.data.target_img_size,
+        inference_transforms=getattr(transforms, "valid_transforms")(
+            target_img_size=config.data.target_img_size
+        ),
+        model_architecture=f"{config.model_name}",
+        learning_rate=config.lr,
+        config=config,
     )
 
     callbacks = [
-        EarlyStopping(monitor="valid_loss_epoch", patience=20),
-        ModelCheckpoint(verbose=True, monitor="valid_loss_epoch"),
+        EarlyStopping(
+            monitor="valid_loss_epoch", patience=config.general.early_stopping
+        ),
+        ModelCheckpoint(
+            verbose=True,
+            monitor="valid_loss_epoch",
+            dirpath=f"{config.general.checkpoint_path}/{config.experiment_name}",
+            filename="{epoch}-{valid_loss_epoch:.2f}",
+        ),
         LearningRateMonitor(),
     ]
     loggers = [
         CSVLogger(
-            save_dir="csv_logs", name="cspresdet50_cosine_AugsHeavy_InsertEmpty_Size640"
+            save_dir=f"{config.general.cvs_logs_path}", name=f"{config.experiment_name}"
         ),
         NeptuneLogger(
             api_key=NEPTUNE_API_TOKEN,
             project_name="azkalot1/reef",
-            experiment_name="cspresdet50_cosine_AugsHeavy_InsertEmpty_Size640",
+            experiment_name=f"{config.experiment_name}",
         ),
     ]
-    trainer = Trainer(
-        callbacks=callbacks,
-        logger=loggers,
-        gpus=4,
-        max_epochs=150,
-        num_sanity_val_steps=1,
-        precision=16,
-        accumulate_grad_batches=64,
-        benchmark=True,
-        deterministic=True,
-        accelerator="ddp",
-    )
+    trainer = Trainer(callbacks=callbacks, logger=loggers, **config.trainer_args)
     trainer.fit(model, datamodule)
 
 
 if __name__ == "__main__":
-    train()
+    conf = OmegaConf.load("default_config.yaml")
+    conf_cli = OmegaConf.from_cli()
+    result_config = OmegaConf.merge(conf, conf_cli)
+    train(result_config)

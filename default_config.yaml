@@ -1,0 +1,35 @@
+model_name: cspresdet50
+lr: 0.001
+experiment_name: default
+data:
+  data_folder: data/
+  fold: 0
+  keep_empty_images: true
+  apply_empty_aug: true
+  num_workers: 8
+  batch_size: 8
+  target_img_size: 1280
+  augmentator_args: {}
+  transforms: train_transforms_heavy
+optimizer:
+  name: AdamW
+  args: {}
+lr_scheduler:
+  name: CosineAnnealingWarmRestarts
+  args:
+    T_0: 15
+    verbose: true
+    eta_min: 1.0e-06
+general:
+  early_stopping: 10
+  checkpoint_path: checkpoints/
+  cvs_logs_path: csv_logs/
+trainer_args:
+  gpus: 4
+  max_epochs: 150
+  num_sanity_val_steps: 1
+  precision: 16
+  accumulate_grad_batches: 32
+  benchmark: true
+  deterministic: true
+  accelerator: ddp

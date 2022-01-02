@@ -6,3 +6,4 @@ effdet==0.2.4
 fastcore==1.3.27
 ensemble-boxes==1.0.8
 objdetecteval==0.1
+omegaconf
