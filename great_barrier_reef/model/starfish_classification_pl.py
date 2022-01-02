@@ -9,7 +9,6 @@ from fastcore.dispatch import typedispatch
 from pytorch_lightning import LightningModule
 from pytorch_lightning.core.decorators import auto_move_data
 
-from great_barrier_reef.utils import get_valid_transforms
 import timm
 import torchmetrics
 

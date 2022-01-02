@@ -9,7 +9,7 @@ from fastcore.dispatch import typedispatch
 from pytorch_lightning import LightningModule
 from pytorch_lightning.core.decorators import auto_move_data
 
-from great_barrier_reef.utils import get_valid_transforms
+from great_barrier_reef.utils import valid_transforms
 from effdet import get_efficientdet_config, EfficientDet, DetBenchTrain
 from effdet.efficientdet import HeadNet
 import effdet
@@ -71,12 +71,13 @@ def create_model(
 class StarfishEfficientDetModel(LightningModule):
     def __init__(
         self,
+        config,
         num_classes=1,
         img_size=512,
         prediction_confidence_threshold=0.1,
         learning_rate=3e-4,
         wbf_iou_threshold=0.44,
-        inference_transforms=get_valid_transforms(target_img_size=512),
+        inference_transforms=valid_transforms(target_img_size=512),
         model_architecture="tf_efficientdet_d0",
         anchor_scale=4,
         pretrained_backbone=True,
@@ -94,22 +95,20 @@ class StarfishEfficientDetModel(LightningModule):
         self.lr = learning_rate
         self.wbf_iou_threshold = wbf_iou_threshold
         self.inference_tfms = inference_transforms
+        self.config = config
+        self.save_hyperparameters("config")
 
     @auto_move_data
     def forward(self, images, targets):
         return self.model(images, targets)
 
     def configure_optimizers(self):
-        optimizer = torch.optim.AdamW(
-            self.model.parameters(),
-            lr=self.lr,
+        optimizer = getattr(torch.optim, self.config.optimizer.name)(
+            self.model.parameters(), lr=self.lr, **self.config.optimizer.args
         )
-        lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
-            optimizer, T_0=15, verbose=True, eta_min=1e-6
+        lr_scheduler = getattr(torch.optim.lr_scheduler, self.config.lr_scheduler.name)(
+            optimizer, **self.config.lr_scheduler.args
         )
-        #lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        #    optimizer, patience=3, verbose=True, factor=0.2
-        #)
         return {
             "optimizer": optimizer,
             "lr_scheduler": lr_scheduler,

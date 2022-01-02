@@ -1,9 +1,12 @@
 import pandas as pd
 from ast import literal_eval
 from .utils import get_bboxes_from_annotation
+import cv2
 import PIL
 import numpy as np
 from tqdm.auto import tqdm
+from skimage.exposure import match_histograms
+import pickle
 
 
 def gaussian_1d(pos, muy, sigma):
@@ -13,28 +16,46 @@ def gaussian_1d(pos, muy, sigma):
     return target
 
 
+def random_rotate(image):
+    flag = np.random.choice([-1, 0, 1, 2])
+    if flag == -1:
+        return image
+    else:
+        return cv2.rotate(image, flag)
+
+
 class ImageInsertAug(object):
     def __init__(
         self,
-        non_empty_df,
+        non_empty_df=None,
         images_dir_path="../data/train_images/",
-        min_insert_starfish=3,
-        max_insert_starfish=7,
+        min_insert_starfish=1,
+        max_insert_starfish=11,
         lambda_insert=0.3,
-        blue_thr=220,
+        blue_thr=200,
         max_attempts_insert=3,
+        saved_crops_path=None,
+        apply_rotation=False,
+        match_histograms=False,
     ):
         self.images_dir_path = images_dir_path
         self.image_paths = non_empty_df.apply(
             lambda x: "video_{}/{}.jpg".format(x["video_id"], x["video_frame"]), axis=1
         ).values
-        self.annotations = non_empty_df["annotations"].apply(literal_eval).values
+        if saved_crops_path is not None:
+            with open(saved_crops_path, "rb") as input_file:
+                self.starfish_crops = pickle.load(input_file)
+        else:
+            self.annotations = non_empty_df["annotations"].apply(literal_eval).values
+            self.starfish_crops = self.prepare_crops()
         self.min_insert_starfish = min_insert_starfish
         self.max_insert_starfish = max_insert_starfish
-        self.starfish_crops = self.prepare_crops()
+
         self.lambda_insert = lambda_insert
         self.blue_thr = blue_thr
         self.max_attempts_insert = max_attempts_insert
+        self.apply_rotation = apply_rotation
+        self.match_histograms = match_histograms
 
     def prepare_crops(self):
         starfish_crops = []
@@ -77,7 +98,13 @@ class ImageInsertAug(object):
         for _ in range(selected_number_of_insertions):
             starfish_idx = np.random.choice(range(len(self.starfish_crops)))
             selected_starfish = self.starfish_crops[starfish_idx]
+            if self.apply_rotation:
+                selected_starfish = random_rotate(selected_starfish)
             h, w = selected_starfish.shape[:2]
+            if self.match_histograms:
+                selected_starfish = match_histograms(
+                    selected_starfish, image_inserted, multichannel=True
+                )
             allow_to_insert = False
             insertion_attempt = 0
             while not allow_to_insert and insertion_attempt <= self.max_attempts_insert:
