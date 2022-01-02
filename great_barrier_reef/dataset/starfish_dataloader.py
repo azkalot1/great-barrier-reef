@@ -2,7 +2,7 @@ from pytorch_lightning import LightningDataModule
 from torch.utils.data import DataLoader
 import albumentations as A
 from .starfish_dataset import StarfishDataset
-from great_barrier_reef.utils import get_valid_transforms
+from great_barrier_reef.utils import valid_transforms
 import pandas as pd
 import torch
 
@@ -12,8 +12,8 @@ class StarfishDataModule(LightningDataModule):
         self,
         train_dataset_adaptor,
         validation_dataset_adaptor,
-        train_transforms=get_valid_transforms(target_img_size=512),
-        valid_transforms=get_valid_transforms(target_img_size=512),
+        train_transforms=valid_transforms(target_img_size=512),
+        valid_transforms=valid_transforms(target_img_size=512),
         num_workers=4,
         batch_size=8,
     ):

@@ -9,7 +9,7 @@ from fastcore.dispatch import typedispatch
 from pytorch_lightning import LightningModule
 from pytorch_lightning.core.decorators import auto_move_data
 
-from great_barrier_reef.utils import get_valid_transforms
+from great_barrier_reef.utils import valid_transforms
 from effdet import get_efficientdet_config, EfficientDet, DetBenchTrain
 from effdet.efficientdet import HeadNet
 import effdet
@@ -77,7 +77,7 @@ class StarfishEfficientDetModel(LightningModule):
         prediction_confidence_threshold=0.1,
         learning_rate=3e-4,
         wbf_iou_threshold=0.44,
-        inference_transforms=get_valid_transforms(target_img_size=512),
+        inference_transforms=valid_transforms(target_img_size=512),
         model_architecture="tf_efficientdet_d0",
         anchor_scale=4,
         pretrained_backbone=True,

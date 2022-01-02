@@ -7,7 +7,7 @@ data:
   keep_empty_images: true
   apply_empty_aug: true
   num_workers: 8
-  batch_size: 8
+  batch_size: 4
   target_img_size: 1280
   augmentator_args: {}
   transforms: train_transforms_heavy

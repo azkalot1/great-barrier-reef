@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from ast import literal_eval
 import albumentations as A
 import torch
-from great_barrier_reef.utils import get_valid_transforms, draw_pascal_voc_bboxes
+from great_barrier_reef.utils import valid_transforms, draw_pascal_voc_bboxes
 from .utils import get_bboxes_from_annotation, get_area, fix_bboxes
 from .augmentation import ImageInsertAug
 
@@ -118,7 +118,7 @@ class StarfishDatasetAdapter(Dataset):
 
 
 class StarfishDataset(Dataset):
-    def __init__(self, dataset_adaptor, transforms=get_valid_transforms()):
+    def __init__(self, dataset_adaptor, transforms=valid_transforms()):
         self.ds = dataset_adaptor
         self.transforms = transforms
 
