@@ -17,12 +17,12 @@ from pytorch_lightning.loggers import CSVLogger, NeptuneLogger
 from pytorch_lightning.utilities.seed import seed_everything
 import matplotlib.pyplot as plt
 import numpy as np
+import os
 import torch
 from omegaconf import OmegaConf
 
 
 def train(config):
-    NEPTUNE_API_TOKEN = "eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vYXBwLm5lcHR1bmUuYWkiLCJhcGlfdXJsIjoiaHR0cHM6Ly9hcHAubmVwdHVuZS5haSIsImFwaV9rZXkiOiI2Yjg5NjBiZC02ZWJjLTQ2MWYtOWEzZi0wNDdiM2ZjMjdjNjMifQ=="
     train_df = pd.read_csv(
         f"{config.data.data_folder}/train_fold{config.data.fold}.csv"
     )
@@ -83,7 +83,7 @@ def train(config):
             save_dir=f"{config.general.cvs_logs_path}", name=f"{config.experiment_name}"
         ),
         NeptuneLogger(
-            api_key=NEPTUNE_API_TOKEN,
+            api_key=os.environ["NEPTUNE_API_TOKEN"],
             project_name="azkalot1/reef",
             experiment_name=f"{config.experiment_name}",
         ),
