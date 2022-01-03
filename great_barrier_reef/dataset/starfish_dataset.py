@@ -19,6 +19,7 @@ class StarfishDatasetAdapter(Dataset):
         images_dir_path="../data/train_images/",
         keep_empty=True,
         apply_empty_aug=False,
+        mosaic_augmentation=False,
         **kwargs,
     ):
         self.keep_empty = keep_empty
@@ -47,13 +48,18 @@ class StarfishDatasetAdapter(Dataset):
         self.image_paths = self.prepare_image_paths()
         self.annotations = self.prepare_annotations()
         self.total_areas = self.prepare_total_areas()
+        self.mosaic_augmentation = mosaic_augmentation
+        self.get_element = (
+            self.get_image_and_labels_by_idx_mosaic
+            if self.mosaic_augmentation
+            else self.get_image_and_labels_by_idx
+        )
 
     def __len__(self) -> int:
         return len(self.images)
 
     def get_image_and_labels_by_idx(self, index):
         image_path = self.image_paths[index]
-        # image_names = self.images[index]
         image = PIL.Image.open(self.images_dir_path / image_path)
         width, height = image.size
         bboxes, image_is_empty = get_bboxes_from_annotation(
@@ -68,8 +74,11 @@ class StarfishDatasetAdapter(Dataset):
 
         return image, bboxes, class_labels, index, image_is_empty
 
+    def get_image_and_labels_by_idx_mosaic(self, index):
+        pass
+
     def __getitem__(self, index):
-        return self.get_image_and_labels_by_idx(index)
+        return self.get_element(index)
 
     def prepare_image_paths(self) -> np.ndarray:
         image_paths = self.annotations_df.apply(

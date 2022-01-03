@@ -2,7 +2,7 @@ import albumentations as A
 from albumentations.pytorch.transforms import ToTensorV2
 
 
-def train_transforms_super_heavy(target_img_size=512):
+def train_transforms_super_heavy(target_img_size=512, normalize=True):
     return A.Compose(
         [
             A.OneOf(
@@ -43,7 +43,7 @@ def train_transforms_super_heavy(target_img_size=512):
             ),
             A.RandomScale(scale_limit=0.25, p=1.0),
             A.Resize(height=target_img_size, width=target_img_size, p=1),
-            A.Normalize(p=1.0),
+            A.Normalize(p=1.0) if normalize else A.NoOp(),
             ToTensorV2(p=1),
         ],
         p=1.0,
@@ -53,7 +53,7 @@ def train_transforms_super_heavy(target_img_size=512):
     )
 
 
-def train_transforms_heavy(target_img_size=512):
+def train_transforms_heavy(target_img_size=512, normalize=True):
     return A.Compose(
         [
             A.OneOf(
@@ -86,7 +86,7 @@ def train_transforms_heavy(target_img_size=512):
             ),
             A.RandomScale(scale_limit=0.25, p=1.0),
             A.Resize(height=target_img_size, width=target_img_size, p=1),
-            A.Normalize(p=1.0),
+            A.Normalize(p=1.0) if normalize else A.NoOp(),
             ToTensorV2(p=1),
         ],
         p=1.0,
@@ -96,7 +96,7 @@ def train_transforms_heavy(target_img_size=512):
     )
 
 
-def train_transforms_super_med1(target_img_size=512):
+def train_transforms_med1(target_img_size=512, normalize=True):
     return A.Compose(
         [
             A.OneOf(
@@ -116,7 +116,7 @@ def train_transforms_super_med1(target_img_size=512):
             ),
             A.RandomScale(scale_limit=0.25, p=1.0),
             A.Resize(height=target_img_size, width=target_img_size, p=1),
-            A.Normalize(p=1.0),
+            A.Normalize(p=1.0) if normalize else A.NoOp(),
             ToTensorV2(p=1),
         ],
         p=1.0,
@@ -126,7 +126,7 @@ def train_transforms_super_med1(target_img_size=512):
     )
 
 
-def train_transforms_super_med2(target_img_size=512):
+def train_transforms_med2(target_img_size=512, normalize=True):
     return A.Compose(
         [
             A.OneOf(
@@ -151,7 +151,7 @@ def train_transforms_super_med2(target_img_size=512):
             ),
             A.RandomScale(scale_limit=0.25, p=1.0),
             A.Resize(height=target_img_size, width=target_img_size, p=1),
-            A.Normalize(p=1.0),
+            A.Normalize(p=1.0) if normalize else A.NoOp(),
             ToTensorV2(p=1),
         ],
         p=1.0,
@@ -161,7 +161,7 @@ def train_transforms_super_med2(target_img_size=512):
     )
 
 
-def train_transforms_simple(target_img_size=512):
+def train_transforms_simple(target_img_size=512, normalize=True):
     return A.Compose(
         [
             A.OneOf(
@@ -172,7 +172,7 @@ def train_transforms_simple(target_img_size=512):
                 p=0.5,
             ),
             A.Resize(height=target_img_size, width=target_img_size, p=1),
-            A.Normalize(p=1.0),
+            A.Normalize(p=1.0) if normalize else A.NoOp(),
             ToTensorV2(p=1),
         ],
         p=1.0,
@@ -182,11 +182,11 @@ def train_transforms_simple(target_img_size=512):
     )
 
 
-def valid_transforms(target_img_size=512):
+def valid_transforms(target_img_size=512, normalize=True):
     return A.Compose(
         [
             A.Resize(height=target_img_size, width=target_img_size, p=1),
-            A.Normalize(p=1.0),
+            A.Normalize(p=1.0) if normalize else A.NoOp(),
             ToTensorV2(p=1),
         ],
         p=1.0,
