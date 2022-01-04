@@ -9,7 +9,7 @@ import albumentations as A
 import torch
 from great_barrier_reef.utils import valid_transforms, draw_pascal_voc_bboxes
 from .utils import get_bboxes_from_annotation, get_area, fix_bboxes
-from .augmentation import ImageInsertAug
+from .augmentation import ImageInsertAug, MosaicAugmentator
 
 
 class StarfishDatasetAdapter(Dataset):
@@ -54,6 +54,8 @@ class StarfishDatasetAdapter(Dataset):
             if self.mosaic_augmentation
             else self.get_image_and_labels_by_idx
         )
+        if self.mosaic_augmentation:
+            self.mosaic_augmentator = MosaicAugmentator()
 
     def __len__(self) -> int:
         return len(self.images)
@@ -75,7 +77,22 @@ class StarfishDatasetAdapter(Dataset):
         return image, bboxes, class_labels, index, image_is_empty
 
     def get_image_and_labels_by_idx_mosaic(self, index):
-        pass
+        selected_idx = [index] + list(np.random.choice(len(self), 3))
+        images = []
+        bboxes = []
+        for i in selected_idx:
+            _image, _bboxes, _class_labels, _, _ = self.get_image_and_labels_by_idx(i)
+            images.append(np.array(_image))
+            bboxes.append(np.array(_bboxes))
+
+        (
+            image,
+            bboxes,
+            class_labels,
+            image_is_empty,
+        ) = self.mosaic_augmentator.run_augmentation(images, bboxes)
+
+        return image, bboxes, class_labels, index, image_is_empty
 
     def __getitem__(self, index):
         return self.get_element(index)
@@ -138,7 +155,7 @@ class StarfishDataset(Dataset):
             class_labels,
             image_id,
             image_is_empty,
-        ) = self.ds.get_image_and_labels_by_idx(index)
+        ) = self.ds[index]
 
         sample = {
             "image": np.array(image, dtype=np.uint8),

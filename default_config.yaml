@@ -34,3 +34,4 @@ trainer_args:
   benchmark: true
   deterministic: true
   accelerator: ddp
+seed: 42

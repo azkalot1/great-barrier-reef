@@ -23,6 +23,7 @@ from omegaconf import OmegaConf
 
 
 def train(config):
+    seed_everything(config.seed)
     train_df = pd.read_csv(
         f"{config.data.data_folder}/train_fold{config.data.fold}.csv"
     )
@@ -33,6 +34,7 @@ def train(config):
         images_dir_path=f"{config.data.data_folder}/train_images/",
         keep_empty=config.data.keep_empty_images,
         apply_empty_aug=config.data.apply_empty_aug,
+        mosaic_augmentation=config.data.mosaic_augmentation,
         **config.data.augmentator_args,
     )
     adapter_dataset_val = StarfishDatasetAdapter(
